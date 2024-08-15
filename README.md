@@ -28,7 +28,7 @@ following command:
 $ brew install libfabric
 ```
 
-Libfabric pre-built binaries may be available from other sources, such as Linux
+Libfabric pre-built binaries may be available from other sources, such as Linuxasdfsadfsdfsadfsfsfds
 distributions.
 
 ## Building and installing libfabric from source
