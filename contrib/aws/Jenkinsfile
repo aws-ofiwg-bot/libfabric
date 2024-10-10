@@ -56,7 +56,7 @@ def run_test_orchestrator_once(run_name, build_tag, os, instance_type, instance_
     def cluster_name = get_cluster_name(build_tag, os, instance_type)
     def args = "--config configs/${test_config_file} --os ${os} --instance-type ${instance_type} --instance-count ${instance_count} --region ${region} --cluster-name ${cluster_name} ${addl_args} --junit-xml outputs/${cluster_name}.xml"
     def ret = sh (
-                    script: ". venv/bin/activate; cd PortaFiducia/tests && ./test_orchestrator.py ${args}",
+                    script: ". venv/bin/activate; cd PortaFiducia/tests && ./test_orchestrator.py ${args} --test-libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git",
                     returnStatus: true
                   )
     if (ret == 65)
