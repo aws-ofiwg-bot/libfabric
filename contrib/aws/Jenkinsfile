@@ -56,7 +56,7 @@ def run_test_orchestrator_once(run_name, build_tag, os, instance_type, instance_
     def cluster_name = get_cluster_name(build_tag, os, instance_type)
     def args = "--config configs/${test_config_file} --os ${os} --instance-type ${instance_type} --instance-count ${instance_count} --region ${region} --cluster-name ${cluster_name} ${addl_args} --junit-xml outputs/${cluster_name}.xml"
     def ret = sh (
-                    script: ". venv/bin/activate; cd PortaFiducia/tests && ./test_orchestrator.py ${args}",
+                    script: ". venv/bin/activate; cd PortaFiducia/tests && ./test_orchestrator.py ${args} --test-libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git",
                     returnStatus: true
                   )
     if (ret == 65)
@@ -107,7 +107,7 @@ def get_single_node_windows_test_stage(stage_name) {
                                 . venv/bin/activate;
                                 cd PortaFiducia/scripts;
                                 export PULL_REQUEST_ID=${env.CHANGE_ID};
-                                env AWS_DEFAULT_REGION=us-west-2 ./test_orchestrator_windows.py --ci public --s3-bucket-name libfabric-ci-windows-prod-test-output --pull-request-id ${env.CHANGE_ID};
+                                env AWS_DEFAULT_REGION=us-west-2 ./test_orchestrator_windows.py --ci public --libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git --s3-bucket-name libfabric-ci-windows-dev-test-output --pull-request-id ${env.CHANGE_ID};
                             """,
                             returnStatus: true
                          )
