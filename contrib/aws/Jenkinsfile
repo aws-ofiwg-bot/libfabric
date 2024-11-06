@@ -37,24 +37,8 @@ def install_porta_fiducia() {
     /*
      * Install PortaFiducia in a (new) virtual environment.
      */
-
     sh '''
-        time python3 -m venv venv
-    '''
-
-    sh '''
-        . venv/bin/activate
-        time pip install -vvv --upgrade pip
-    '''
-
-    sh '''
-        . venv/bin/activate
-        time pip install -vvv --upgrade awscli
-    '''
-
-    sh '''
-        . venv/bin/activate
-        time pip install -vvv -e PortaFiducia
+        pip install -e PortaFiducia
     '''
 }
 
