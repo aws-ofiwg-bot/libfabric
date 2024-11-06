@@ -35,11 +35,11 @@ def install_porta_fiducia() {
      * Install PortaFiducia in a (new) virtual environment.
      */
     sh '''
-        python3 -m venv venv
-        . venv/bin/activate
+        python3 -m venv /tmp/PortaFiducia/venv
+        . /tmp/PortaFiducia/venv/bin/activate
         pip install --upgrade pip
         pip install --upgrade awscli
-        pip install -e PortaFiducia
+        pip install -e /tmp/PortaFiducia
     '''
 }
 
@@ -50,7 +50,7 @@ def run_test_orchestrator_once(run_name, build_tag, os, instance_type, instance_
      */
     def cluster_name = get_cluster_name(build_tag, os, instance_type)
     def args = "--config configs/${test_config_file} --os ${os} --instance-type ${instance_type} --instance-count ${instance_count} --region ${region} --cluster-name ${cluster_name} ${addl_args} --junit-xml outputs/${cluster_name}.xml"
-    sh ". venv/bin/activate; cd PortaFiducia/tests && ./test_orchestrator.py ${args} --test-libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git"
+    sh ". /tmp/PortaFiducia/venv/bin/activate; cd /tmp/PortaFiducia/tests && ./test_orchestrator.py ${args} --test-libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git"
 }
 
 def get_random_string(len) {
@@ -89,8 +89,8 @@ def get_single_node_windows_test_stage_with_lock(stage_name, lock_label) {
         stage("${stage_name}") {
             lock(label: lock_label, quantity: 1) {
                 sh """
-                    . venv/bin/activate;
-                    cd PortaFiducia/scripts;
+                    . /tmp/PortaFiducia/venv/bin/activate;
+                    cd /tmp/PortaFiducia/scripts;
                     export PULL_REQUEST_ID=${env.CHANGE_ID};
                     env AWS_DEFAULT_REGION=us-west-2 ./test_orchestrator_windows.py --ci public --libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git --s3-bucket-name libfabric-ci-windows-dev-test-output --pull-request-id ${env.CHANGE_ID};
                 """
@@ -152,7 +152,7 @@ pipeline {
             steps {
                 script {
                     sh 'printenv'
-                    download_and_extract_portafiducia('PortaFiducia')
+                    download_and_extract_portafiducia('/tmp/PortaFiducia')
                 }
             }
         }
@@ -238,18 +238,18 @@ pipeline {
     }
     post {
         always {
-            sh 'find PortaFiducia/tests/outputs -name "*.xml" | xargs du -shc'
-            junit testResults: 'PortaFiducia/tests/outputs/**/*.xml', keepLongStdio: false
-            archiveArtifacts artifacts: 'PortaFiducia/tests/outputs/**/*.*'
+            sh 'find /tmp/PortaFiducia/tests/outputs -name "*.xml" | xargs du -shc'
+            junit testResults: '/tmp/PortaFiducia/tests/outputs/**/*.xml', keepLongStdio: false
+            archiveArtifacts artifacts: '/tmp/PortaFiducia/tests/outputs/**/*.*'
         }
         failure {
             sh '''
-                . venv/bin/activate
-                ./PortaFiducia/scripts/delete_manual_cluster.py --cluster-name WindowsLibfabricCi_${env.CHANGE_ID}_*
+                . /tmp/PortaFiducia/venv/bin/activate
+                /tmp/PortaFiducia/scripts/delete_manual_cluster.py --cluster-name WindowsLibfabricCi_${env.CHANGE_ID}_*
             '''
         }
         aborted {
-            sh '. venv/bin/activate; ./PortaFiducia/scripts/delete_manual_cluster.py --cluster-name "$BUILD_TAG"\'*\' --region $REGION'
+            sh '. /tmp/PortaFiducia/venv/bin/activate; /tmp/PortaFiducia/scripts/delete_manual_cluster.py --cluster-name "$BUILD_TAG"\'*\' --region $REGION'
         }
         // Cleanup workspace after job completes.
         cleanup {
