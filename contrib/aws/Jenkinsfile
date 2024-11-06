@@ -5,43 +5,6 @@ def buildNumber = env.BUILD_NUMBER as int
 if (buildNumber > 1) milestone(buildNumber - 1)
 milestone(buildNumber)
 
-
-import groovy.transform.Field
-@Field boolean build_ok = true
-
-
-def get_portafiducia_download_path() {
-    /* Stable Portafiducia tarball */
-    def AWS_ACCOUNT_ID = sh (
-                script: "aws sts get-caller-identity --query Account --output text | tr -dc 0-9",
-                returnStdout: true
-              )
-    return "s3://libfabric-ci-$AWS_ACCOUNT_ID-us-west-2/portafiducia/portafiducia.tar.gz"
-}
-
-def download_and_extract_portafiducia(outputDir) {
-    /* Download PortaFiducia tarball from S3 and extract to outputDir */
-    def tempPath = "/tmp/portafiducia.tar.gz"
-    def downloadPath = this.get_portafiducia_download_path()
-    sh """
-        mkdir -p ${outputDir}
-        aws s3 cp ${downloadPath} ${tempPath}
-        tar xf ${tempPath} -C ${outputDir}
-    """
-}
-
-//        export PIP_DISABLE_PIP_VERSION_CHECK=1
-//        export PIP_NO_USE_PYE_IPV6=1
-//  -vvv --only-binary=:all:
-def install_porta_fiducia() {
-    /*
-     * Install PortaFiducia in a (new) virtual environment.
-     */
-    sh '''
-        pip install -e PortaFiducia
-    '''
-}
-
 def run_test_orchestrator_once(run_name, build_tag, os, instance_type, instance_count, region, test_config_file, addl_args) {
     /*
      * Run PortaFiducia/tests/test_orchestrator.py with given command line arguments
@@ -49,7 +12,7 @@ def run_test_orchestrator_once(run_name, build_tag, os, instance_type, instance_
      */
     def cluster_name = get_cluster_name(build_tag, os, instance_type)
     def args = "--config configs/${test_config_file} --os ${os} --instance-type ${instance_type} --instance-count ${instance_count} --region ${region} --cluster-name ${cluster_name} ${addl_args} --junit-xml outputs/${cluster_name}.xml"
-    sh ". venv/bin/activate; cd PortaFiducia/tests && ./test_orchestrator.py ${args} --test-libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git"
+    sh "run_test_orchestrator ${args} --test-libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git"
 }
 
 def get_random_string(len) {
@@ -80,24 +43,6 @@ def get_cluster_name(build_tag, os, instance_type) {
     return cluster_name
 }
 
-def get_single_node_windows_test_stage_with_lock(stage_name, lock_label) {
-    /*
-     * Get Windows Stage
-     */
-    return {
-        stage("${stage_name}") {
-            lock(label: lock_label, quantity: 1) {
-                sh """
-                    . venv/bin/activate;
-                    cd PortaFiducia/scripts;
-                    export PULL_REQUEST_ID=${env.CHANGE_ID};
-                    env AWS_DEFAULT_REGION=us-west-2 ./test_orchestrator_windows.py --ci public --libfabric-repo https://github.com/aws-ofiwg-bot/libfabric.git --s3-bucket-name libfabric-ci-windows-dev-test-output --pull-request-id ${env.CHANGE_ID};
-                """
-            }
-        }
-    }
-
-}
 
 def get_test_stage_with_lock(stage_name, build_tag, os, instance_type, instance_count, region, test_config, lock_label, addl_args) {
     /*
@@ -147,22 +92,6 @@ pipeline {
                 checkout scm
             }
         }
-        stage("Download and extract PortaFiducia") {
-            steps {
-                script {
-                    sh 'printenv'
-                    download_and_extract_portafiducia('PortaFiducia')
-                }
-            }
-        }
-        stage("Install PortaFiducia") {
-            steps {
-                script {
-                    install_porta_fiducia()
-                }
-
-            }
-        }
         stage("Test EFA provider") {
             steps {
                 script {
@@ -191,9 +120,6 @@ pipeline {
                     stages["1_g4dn_ubuntu2004_shm"] = get_test_stage_with_lock("1_g4dn_ubuntu2004_shm", env.BUILD_TAG, "ubuntu2004", "g4dn.8xlarge", 1, "us-east-1", "libfabric_pr_test.yaml", g4dn8x_lock_label, addl_args_pr + "--test-libfabric-provider shm")
                     stages["1_c5_rhel8_shm"] = get_test_stage_with_lock("1_c5_rhel8_shm", env.BUILD_TAG, "rhel8", "c5.2xlarge", 1, "us-east-1", "libfabric_pr_test.yaml", c52x_lock_label, addl_args_pr + "--test-libfabric-provider shm --enable-efa false")
                     stages["1_c5_ubuntu2004_shm_disable-cma"] = get_test_stage_with_lock("1_c5_ubuntu2004_shm_disable-cma", env.BUILD_TAG, "ubuntu2004", "c5.2xlarge", 1, "us-east-1", "libfabric_pr_test.yaml", c52x_lock_label, addl_args_pr + "--test-libfabric-provider shm --enable-cma false --enable-efa false")
-
-                    // Single Node Windows Test
-                    stages["EFA_Windows_Test"] = get_single_node_windows_test_stage_with_lock("EFA_Windows_Test", c5n18x_lock_label)
 
                     // Multi Node Tests - EFA
                     stages["2_hpc6a_alinux2_efa"] = get_test_stage_with_lock("2_hpc6a_alinux2_efa", env.BUILD_TAG, "alinux2", "hpc6a.48xlarge", 2, "eu-north-1", "libfabric_pr_test.yaml", hpc6a48x_lock_label, addl_args_pr)
@@ -243,12 +169,11 @@ pipeline {
         }
         failure {
             sh '''
-                . venv/bin/activate
                 ./PortaFiducia/scripts/delete_manual_cluster.py --cluster-name WindowsLibfabricCi_${env.CHANGE_ID}_*
             '''
         }
         aborted {
-            sh '. venv/bin/activate; ./PortaFiducia/scripts/delete_manual_cluster.py --cluster-name "$BUILD_TAG"\'*\' --region $REGION'
+            sh './PortaFiducia/scripts/delete_manual_cluster.py --cluster-name "$BUILD_TAG"\'*\' --region $REGION'
         }
         // Cleanup workspace after job completes.
         cleanup {
